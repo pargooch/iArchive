@@ -3,7 +3,8 @@ import VisionKit
 
 struct DocumentScannerView: UIViewControllerRepresentable {
     @Binding var images: [UIImage]
-    var onDismiss: (() -> Void)?
+    var onDismiss: (() -> Void)? = nil
+    var onCompleted: (([UIImage]) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -31,6 +32,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
                 newImages.append(img)
             }
             parent.images.append(contentsOf: newImages)
+            parent.onCompleted?(newImages)
             controller.dismiss(animated: true) {
                 self.parent.onDismiss?()
             }
