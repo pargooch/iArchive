@@ -11,10 +11,14 @@ struct ScannerView: View {
                 .edgesIgnoringSafeArea(.all)
 
             // Overlay rectangle when a document is detected
-            if let rect = camera.lastDetectedRect {
-                RectangleOverlay(rect: rect)
+            if let points = camera.smoothedPoints {
+                RectangleOverlay(rect: nil, normalizedPoints: points, previewLayer: camera.previewLayer)
                     .stroke(Color.yellow, lineWidth: 3)
-                    .animation(.easeInOut(duration: 0.2), value: rect)
+                    .animation(.easeInOut(duration: 0.2), value: points)
+            } else if let rect = camera.lastDetectedRect {
+                RectangleOverlay(rect: rect, normalizedPoints: nil, previewLayer: camera.previewLayer)
+                    .stroke(Color.yellow, lineWidth: 3)
+                    .animation(.easeInOut(duration: 0.2), value: rect.boundingBox)
             }
         }
         .onAppear {

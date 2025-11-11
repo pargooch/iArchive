@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct iArchiveApp: App {
+    @StateObject private var store = ScannedPagesStore()
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(store)
         }
     }
 }
