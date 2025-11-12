@@ -25,6 +25,8 @@ struct HomeView: View {
     @State private var showCameraOptions = false
     @State private var searchActive = false
     @State private var searchText = ""
+    @State private var showDetail = false
+    @State private var detailIndex: Int? = nil
 
     var body: some View {
         NavigationView {
@@ -65,18 +67,24 @@ struct HomeView: View {
                         }
                         LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(indices, id: \.self) { index in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Image(uiImage: store.pages[index])
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(height: 160)
-                                        .cornerRadius(10)
-                                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                                    Text(store.names.indices.contains(index) ? store.names[index] : "Document \(index + 1)")
-                                        .font(.footnote)
-                                        .foregroundColor(.secondary)
+                                Button(action: {
+                                    detailIndex = index
+                                    showDetail = true
+                                }) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Image(uiImage: store.pages[index])
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: 160)
+                                            .cornerRadius(10)
+                                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                        Text(store.names.indices.contains(index) ? store.names[index] : "Document \(index + 1)")
+                                            .font(.footnote)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 8)
                                 }
-                                .padding(.horizontal, 8)
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal)
@@ -91,6 +99,11 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showShare) {
             ShareSheet(items: shareItems)
+        }
+        .sheet(isPresented: $showDetail) {
+            if let idx = detailIndex, store.pages.indices.contains(idx) {
+                DocumentDetailView(image: store.pages[idx], name: store.names.indices.contains(idx) ? store.names[idx] : nil)
+            }
         }
         .fullScreenCover(isPresented: $showCameraOptions) {
             CameraOptionsView()
