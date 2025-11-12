@@ -18,28 +18,39 @@ struct ContentView: View {
 
 struct HomeView: View {
     @EnvironmentObject private var store: ScannedPagesStore
-    @State private var showShare = false
-    @State private var shareItems: [Any] = []
-    @State private var showSaveAlert = false
-    @State private var saveSuccess = false
     @State private var showCameraOptions = false
     @State private var searchActive = false
     @State private var searchText = ""
     @State private var showDetail = false
     @State private var detailIndex: Int? = nil
+    @State private var isSelecting = false
+    @State private var selectedIndices: Set<Int> = []
 
     var body: some View {
         NavigationView {
             ZStack(alignment: .bottomLeading) {
                 VStack(spacing: 0) {
-                    // Custom top bar like screenshot
-                    HStack {
-                        Spacer()
+                    // Top bar: centered title, trailing controls layered
+                    ZStack {
                         Text("Documents")
                             .font(.headline)
                             .foregroundColor(.primary)
-                        Spacer()
-                        RoundedButton(icon: "magnifyingglass") { searchActive.toggle() }
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 8) {
+                                RoundedButton(icon: "magnifyingglass") { searchActive.toggle() }
+                                RoundedButton(icon: isSelecting ? "xmark" : "checkmark.circle") {
+                                    if isSelecting {
+                                        isSelecting = false
+                                        selectedIndices.removeAll()
+                                    } else {
+                                        isSelecting = true
+                                    }
+                                }
+                            }
+                        }
                     }
                     .padding(.horizontal)
                     .padding(.top, 12)
@@ -67,9 +78,14 @@ struct HomeView: View {
                         }
                         LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(indices, id: \.self) { index in
+                                let isSelected = selectedIndices.contains(index)
                                 Button(action: {
-                                    detailIndex = index
-                                    showDetail = true
+                                    if isSelecting {
+                                        if isSelected { selectedIndices.remove(index) } else { selectedIndices.insert(index) }
+                                    } else {
+                                        detailIndex = index
+                                        showDetail = true
+                                    }
                                 }) {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Image(uiImage: store.pages[index])
@@ -78,6 +94,13 @@ struct HomeView: View {
                                             .frame(height: 160)
                                             .cornerRadius(10)
                                             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                            .overlay(alignment: .topTrailing) {
+                                                if isSelecting {
+                                                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                                        .foregroundColor(isSelected ? .accentColor : .secondary)
+                                                        .padding(6)
+                                                }
+                                            }
                                         Text(store.names.indices.contains(index) ? store.names[index] : "Document \(index + 1)")
                                             .font(.footnote)
                                             .foregroundColor(.secondary)
@@ -93,46 +116,61 @@ struct HomeView: View {
 
                     // Bottom actions removed per request; actions will appear post-scan
                 }
-                addFloatingButton
+                bottomActionButton
             }
             .navigationBarHidden(true)
         }
-        .sheet(isPresented: $showShare) {
-            ShareSheet(items: shareItems)
-        }
         .sheet(isPresented: $showDetail) {
             if let idx = detailIndex, store.pages.indices.contains(idx) {
-                DocumentDetailView(image: store.pages[idx], name: store.names.indices.contains(idx) ? store.names[idx] : nil)
+                DocumentDetailView(index: idx, image: store.pages[idx])
+                    .environmentObject(store)
             }
         }
         .fullScreenCover(isPresented: $showCameraOptions) {
             CameraOptionsView()
                 .environmentObject(store)
         }
-        .alert(isPresented: $showSaveAlert) {
-            Alert(
-                title: Text(saveSuccess ? "Saved" : "Not Saved"),
-                message: Text(saveSuccess ? "Images saved to Photos." : "Enable Photos permission in Settings."),
-                dismissButton: .default(Text("OK"))
-            )
-        }
     }
 
     // Export/Share/Save moved to post-scan actions
 
     @ViewBuilder
-    private var addFloatingButton: some View {
-        Button(action: { showCameraOptions = true }) {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.white)
-                .frame(width: 56, height: 56)
-                .background(Color.orange)
-                .clipShape(Circle())
-                .shadow(radius: 4)
+    private var bottomActionButton: some View {
+        Group {
+            if isSelecting {
+                if !selectedIndices.isEmpty {
+                    Button(action: deleteSelected) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+                }
+            } else {
+                Button(action: { showCameraOptions = true }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.orange)
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
+            }
         }
         .padding(.leading, 16)
         .padding(.bottom, 24)
+    }
+
+    private func deleteSelected() {
+        let sorted = selectedIndices.sorted()
+        guard !sorted.isEmpty else { return }
+        store.remove(at: IndexSet(sorted))
+        selectedIndices.removeAll()
+        isSelecting = false
     }
 }
 
@@ -150,60 +188,6 @@ private struct RoundedButton: View {
                         .stroke(Color(.systemGray4), lineWidth: 1)
                 )
                 .cornerRadius(16)
-        }
-    }
-}
-
-struct ScanTabView: View {
-    @EnvironmentObject private var store: ScannedPagesStore
-    @State private var showScanner = false
-    @State private var postScanImages: [UIImage] = []
-    @State private var showPostActions = false
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                Image(systemName: "doc.viewfinder")
-                    .font(.system(size: 64))
-                    .foregroundColor(.accentColor)
-
-                Text("Scan new documents with auto-crop and perspective correction.")
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-
-                Button(action: { showScanner = true }) {
-                    Text("Start Scan")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-
-                if !store.pages.isEmpty {
-                    Text("Total pages: \(store.pages.count)")
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Scan")
-        }
-        .sheet(isPresented: $showScanner) {
-            DocumentScannerView(
-                images: $store.pages,
-                onDismiss: { showScanner = false },
-                onCompleted: { imgs in
-                    postScanImages = imgs
-                    showPostActions = true
-                }
-            )
-        }
-        .sheet(isPresented: $showPostActions) {
-            PostScanActionsView(images: postScanImages)
-                .environmentObject(store)
         }
     }
 }
