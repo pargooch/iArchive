@@ -13,6 +13,7 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gear")
                 }
         }
+        .tint(.brandPrimary)
     }
 }
 
@@ -21,8 +22,7 @@ struct HomeView: View {
     @State private var showCameraOptions = false
     @State private var searchActive = false
     @State private var searchText = ""
-    @State private var showDetail = false
-    @State private var detailIndex: Int? = nil
+    @State private var selectedDocument: PersistedDocument? = nil
     @State private var isSelecting = false
     @State private var selectedIndices: Set<Int> = []
 
@@ -49,6 +49,11 @@ struct HomeView: View {
                                         isSelecting = true
                                     }
                                 }
+                                if isSelecting {
+                                    RoundedButton(icon: allSelected ? "checkmark.square.fill" : "checkmark.square") {
+                                        toggleSelectAll()
+                                    }
+                                }
                             }
                         }
                     }
@@ -70,67 +75,48 @@ struct HomeView: View {
                         .padding(.horizontal)
                     }
 
-                    // Content grid
-                    ScrollView {
-                        let columns = [GridItem(.flexible()), GridItem(.flexible())]
+                    // Professional list or empty state
+                    if library.documents.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "doc")
+                                .font(.system(size: 56))
+                                .foregroundColor(.secondary)
+                            Text("You haven't scanned any document")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Text("Tap the + button to add your first document.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 240)
+                        .padding(.top, 32)
+                    } else {
                         let indices = Array(library.documents.indices).filter { idx in
                             let name = library.documents[idx].name
                             return searchText.isEmpty ? true : name.localizedCaseInsensitiveContains(searchText)
                         }
-                        LazyVGrid(columns: columns, spacing: 16) {
+                        List {
                             ForEach(indices, id: \.self) { index in
+                                let doc = library.documents[index]
                                 let isSelected = selectedIndices.contains(index)
                                 Button(action: {
                                     if isSelecting {
                                         if isSelected { selectedIndices.remove(index) } else { selectedIndices.insert(index) }
                                     } else {
-                                        detailIndex = index
-                                        showDetail = true
+                                        selectedDocument = doc
                                     }
                                 }) {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        if let thumb = library.thumbnail(for: library.documents[index]) {
-                                            Image(uiImage: thumb)
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(height: 160)
-                                                .cornerRadius(10)
-                                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                                                .overlay(alignment: .topTrailing) {
-                                                    if isSelecting {
-                                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                                            .foregroundColor(isSelected ? .accentColor : .secondary)
-                                                            .padding(6)
-                                                    }
-                                                }
-                                        } else {
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .fill(Color(.systemGray5))
-                                                    .frame(height: 160)
-                                                Image(systemName: "doc")
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                                            .overlay(alignment: .topTrailing) {
-                                                if isSelecting {
-                                                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                                        .foregroundColor(isSelected ? .accentColor : .secondary)
-                                                        .padding(6)
-                                                }
-                                            }
-                                        }
-                                        Text(library.documents[index].name)
-                                            .font(.footnote)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.horizontal, 8)
+                                    DocumentRow(
+                                        document: doc,
+                                        thumbnail: library.thumbnail(for: doc),
+                                        isSelecting: isSelecting,
+                                        isSelected: isSelected
+                                    )
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
+                        .listStyle(.insetGrouped)
                     }
 
                     // Bottom actions removed per request; actions will appear post-scan
@@ -138,12 +124,11 @@ struct HomeView: View {
                 bottomActionButton
             }
             .navigationBarHidden(true)
+            .tint(.brandPrimary)
         }
-        .sheet(isPresented: $showDetail) {
-            if let idx = detailIndex, library.documents.indices.contains(idx) {
-                DocumentDetailView(document: library.documents[idx])
-                    .environmentObject(library)
-            }
+        .sheet(item: $selectedDocument) { doc in
+            DocumentDetailView(document: doc)
+                .environmentObject(library)
         }
         .fullScreenCover(isPresented: $showCameraOptions) {
             CameraOptionsView()
@@ -163,7 +148,7 @@ struct HomeView: View {
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.white)
                             .frame(width: 56, height: 56)
-                            .background(Color.red)
+                            .background(Color.brandPrimary)
                             .clipShape(Circle())
                             .shadow(radius: 4)
                     }
@@ -174,7 +159,7 @@ struct HomeView: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                         .frame(width: 56, height: 56)
-                        .background(Color.orange)
+                        .background(Color.brandPrimary)
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
@@ -191,6 +176,18 @@ struct HomeView: View {
         selectedIndices.removeAll()
         isSelecting = false
     }
+
+    private var allSelected: Bool {
+        !library.documents.isEmpty && selectedIndices.count == library.documents.count
+    }
+
+    private func toggleSelectAll() {
+        if allSelected {
+            selectedIndices.removeAll()
+        } else {
+            selectedIndices = Set(library.documents.indices)
+        }
+    }
 }
 
 private struct RoundedButton: View {
@@ -199,44 +196,107 @@ private struct RoundedButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .foregroundColor(.primary)
+                .foregroundColor(.brandPrimary)
                 .frame(width: 32, height: 32)
                 .background(Color(.systemBackground))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
+                        .stroke(Color.brandPrimary.opacity(0.6), lineWidth: 1)
                 )
                 .cornerRadius(16)
         }
     }
 }
 
+private struct DocumentRow: View {
+    let document: PersistedDocument
+    let thumbnail: UIImage?
+    let isSelecting: Bool
+    let isSelected: Bool
+
+    private static let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        return df
+    }()
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Thumbnail or placeholder
+            if let thumb = thumbnail {
+                Image(uiImage: thumb)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 56, height: 56)
+                    .clipped()
+                    .cornerRadius(8)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "doc")
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Title and metadata
+            VStack(alignment: .leading, spacing: 4) {
+                Text(document.name)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                let pages = document.pagePaths.count
+                let dateText = Self.dateFormatter.string(from: document.date)
+                Text("\(pages) page\(pages == 1 ? "" : "s") • \(dateText)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Selection indicator when selecting
+            if isSelecting {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .brandPrimary : .secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var library: DocumentLibrary
-    @State private var showClearAlert = false
+    @State private var showHelp = false
+    @State private var showAbout = false
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Library")) {
-                    Button(role: .destructive) {
-                        showClearAlert = true
+                Section(header: Text("Support")) {
+                    Button {
+                        showHelp = true
                     } label: {
-                        Label("Clear All Documents", systemImage: "trash")
+                        Label("Help", systemImage: "questionmark.circle")
                     }
                 }
-                Section(header: Text("About")) {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0").foregroundColor(.secondary)
+                Section(header: Text("Information")) {
+                    Button {
+                        showAbout = true
+                    } label: {
+                        Label("About", systemImage: "info.circle")
                     }
                 }
             }
             .navigationTitle("Settings")
-            .alert("Clear All Documents?", isPresented: $showClearAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Clear", role: .destructive) { library.clearAll() }
-            }
+        }
+        .tint(.brandPrimary)
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
         }
     }
 }

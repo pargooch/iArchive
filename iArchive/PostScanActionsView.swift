@@ -45,32 +45,20 @@ struct PostScanActionsView: View {
                     // Export images into a single PDF, then share.
                     Button(action: exportPDF) {
                         HStack { Image(systemName: "doc.richtext"); Text("Export PDF").fontWeight(.semibold) }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                     }
+                    .primaryButton()
 
                     // Share original images using the share sheet.
                     Button(action: shareImages) {
                         HStack { Image(systemName: "square.and.arrow.up"); Text("Share Images").fontWeight(.semibold) }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                     }
+                    .primaryButton()
 
                     // Save images into the user's Photos library.
                     Button(action: saveImages) {
                         HStack { Image(systemName: "square.and.arrow.down"); Text("Save to Photos").fontWeight(.semibold) }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                     }
+                    .primaryButton()
                 }
                 .padding(.horizontal)
 
@@ -81,6 +69,7 @@ struct PostScanActionsView: View {
                 ToolbarItem(placement: .navigationBarLeading) { Button("Done") { dismiss() } }
             }
         }
+        .tint(.brandPrimary)
         // Share sheet presentation with either PDF URL or images.
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
         // Simple alert reporting Photos save result.

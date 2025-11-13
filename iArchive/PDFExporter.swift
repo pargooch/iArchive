@@ -84,6 +84,58 @@ struct PDFExporter {
             return nil
         }
     }
+
+    /// Attempts to save the generated PDF directly into iCloud Drive (ubiquity container).
+    /// Requires iCloud Documents capability enabled in the project.
+    /// Falls back by returning nil if the ubiquity container is unavailable.
+    static func generatePDFToICloudDrive(from images: [UIImage], suggestedName: String? = nil) -> URL? {
+        guard !images.isEmpty else {
+            print("[PDFExporter] No images provided; aborting iCloud PDF generation")
+            return nil
+        }
+
+        // Check iCloud container availability
+        guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
+            print("[PDFExporter] iCloud ubiquity container not available — ensure iCloud Documents capability is enabled")
+            return nil
+        }
+
+        let pdfDocument = PDFDocument()
+        for (index, image) in images.enumerated() {
+            if let page = PDFPage(image: image) {
+                pdfDocument.insert(page, at: index)
+            } else {
+                print("[PDFExporter] Skipped image at index \(index): could not create PDFPage")
+            }
+        }
+
+        // iCloud Documents folder inside the ubiquity container
+        let iCloudDocs = containerURL.appendingPathComponent("Documents")
+        do { try FileManager.default.createDirectory(at: iCloudDocs, withIntermediateDirectories: true) } catch {
+            print("[PDFExporter] Failed to create iCloud Documents directory: \(error)")
+            return nil
+        }
+
+        let baseName: String = {
+            let name = (suggestedName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "scan")
+            let safe = name.replacingOccurrences(of: "/", with: "_")
+                           .replacingOccurrences(of: ":", with: "_")
+                           .replacingOccurrences(of: "\n", with: " ")
+            return safe.isEmpty ? "scan" : safe
+        }()
+        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let filename = "\(baseName)-\(timestamp).pdf"
+        let fileURL = iCloudDocs.appendingPathComponent(filename)
+
+        let success = pdfDocument.write(to: fileURL)
+        if success {
+            print("[PDFExporter] Persistent PDF written to iCloud Drive: \(fileURL.path)")
+            return fileURL
+        } else {
+            print("[PDFExporter] Failed to write PDF to iCloud Drive: \(fileURL.path)")
+            return nil
+        }
+    }
 }
 
 struct DocumentPreviewView: View {

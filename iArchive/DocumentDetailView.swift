@@ -19,6 +19,8 @@ struct DocumentDetailView: View {
     @State private var showPDFFailureAlert = false
     @State private var showPDFSuccessAlert = false
     @State private var lastSavedPDFURL: URL? = nil
+    @State private var showExportPicker = false
+    @State private var showExportOptions = false
     @State private var photoAuthStatus: PHAuthorizationStatus = .notDetermined
 
     var body: some View {
@@ -38,21 +40,13 @@ struct DocumentDetailView: View {
                     VStack(spacing: 12) {
                         Button(action: exportPDF) {
                             HStack { Image(systemName: "doc.richtext"); Text("Export PDF").fontWeight(.semibold) }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
                         }
+                        .primaryButton()
 
                         Button(action: saveImages) {
                             HStack { Image(systemName: "square.and.arrow.down"); Text("Save to Photos").fontWeight(.semibold) }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
                         }
+                        .primaryButton()
                         .disabled(photoAuthStatus == .denied || photoAuthStatus == .restricted)
                         
                         if photoAuthStatus == .denied || photoAuthStatus == .restricted {
@@ -94,7 +88,29 @@ struct DocumentDetailView: View {
             } message: {
                 Text("Your PDF was saved to the app's Documents directory.\n\(lastSavedPDFURL?.lastPathComponent ?? "")")
             }
+            // Files export UI (allows saving to iCloud Drive if direct save isn't available)
+            .sheet(isPresented: $showExportPicker) {
+                if let url = lastSavedPDFURL {
+                    ExportPicker(url: url)
+                }
+            }
+            // Choice UI similar to Genius app: Share or Save to Files
+            .confirmationDialog("Export PDF", isPresented: $showExportOptions, titleVisibility: .visible) {
+                if let url = lastSavedPDFURL {
+                    Button("Share PDF") {
+                        shareItems = [url]
+                        showShare = true
+                    }
+                    Button("Save to Files") {
+                        showExportPicker = true
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose how you want to export your PDF.")
+            }
         }
+        .tint(.brandPrimary)
         .onAppear { updatePhotoAuthStatus() }
         .sheet(isPresented: $showRename) {
             NavigationView {
@@ -125,7 +141,8 @@ struct DocumentDetailView: View {
         showRename = false
     }
 
-    // Export all pages of this document as a single PDF and save to Documents
+    // Export all pages of this document as a single PDF.
+    // Generate PDF to Documents, then present options to Share or Save to Files.
     private func exportPDF() {
         let images = library.images(for: document)
         guard !images.isEmpty else {
@@ -133,12 +150,13 @@ struct DocumentDetailView: View {
             showPDFFailureAlert = true
             return
         }
-        guard let url = PDFExporter.generatePDFToDocuments(from: images, suggestedName: document.name) else {
+        if let url = PDFExporter.generatePDFToDocuments(from: images, suggestedName: document.name) {
+            lastSavedPDFURL = url
+            print("[DocumentDetailView] PDF generated at: \(url.path). Presenting export options.")
+            showExportOptions = true
+        } else {
             showPDFFailureAlert = true
-            return
         }
-        lastSavedPDFURL = url
-        showPDFSuccessAlert = true
     }
 
     // Save all pages of this document to the Photos library

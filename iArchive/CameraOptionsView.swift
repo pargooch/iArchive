@@ -21,6 +21,7 @@ struct CameraOptionsView: View {
                         Button(action: { dismiss() }) {
                             Image(systemName: "chevron.backward")
                                 .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.brandPrimary)
                         }
                         Spacer()
                     }
@@ -35,12 +36,8 @@ struct CameraOptionsView: View {
                                 Text("Add from Gallery")
                                     .fontWeight(.semibold)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                         }
+                        .primaryButton()
 
                         Button(action: { showScanner = true }) {
                             HStack {
@@ -48,12 +45,8 @@ struct CameraOptionsView: View {
                                 Text("Scan with Camera")
                                     .fontWeight(.semibold)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                         }
+                        .primaryButton()
 
                         Button(action: { showDocumentPicker = true }) {
                             HStack {
@@ -61,12 +54,8 @@ struct CameraOptionsView: View {
                                 Text("Choose from Files")
                                     .fontWeight(.semibold)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
                         }
+                        .primaryButton()
                     }
                     .padding(.horizontal)
 
@@ -90,6 +79,7 @@ struct CameraOptionsView: View {
             PhotoPicker { images in
                 library.addDocument(images: images)
             }
+            .tint(.brandPrimary)
         }
         .sheet(isPresented: $showDocumentPicker) {
             DocumentPicker { images in
