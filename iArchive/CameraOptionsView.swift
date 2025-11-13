@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CameraOptionsView: View {
-    @EnvironmentObject private var store: ScannedPagesStore
+    @EnvironmentObject private var library: DocumentLibrary
     @Environment(\.dismiss) private var dismiss
 
     @State private var showScanner = false
@@ -9,6 +9,7 @@ struct CameraOptionsView: View {
     @State private var showDocumentPicker = false
     @State private var postScanImages: [UIImage] = []
     @State private var showPostActions = false
+    @State private var scannedTemp: [UIImage] = []
 
     var body: some View {
         NavigationView {
@@ -76,9 +77,10 @@ struct CameraOptionsView: View {
         }
         .fullScreenCover(isPresented: $showScanner) {
             DocumentScannerView(
-                images: $store.pages,
+                images: $scannedTemp,
                 onDismiss: { showScanner = false },
                 onCompleted: { imgs in
+                    library.addDocument(images: imgs)
                     postScanImages = imgs
                     showPostActions = true
                 }
@@ -86,17 +88,16 @@ struct CameraOptionsView: View {
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotoPicker { images in
-                store.add(images: images)
+                library.addDocument(images: images)
             }
         }
         .sheet(isPresented: $showDocumentPicker) {
             DocumentPicker { images in
-                store.add(images: images)
+                library.addDocument(images: images)
             }
         }
         .sheet(isPresented: $showPostActions) {
             PostScanActionsView(images: postScanImages)
-                .environmentObject(store)
         }
     }
 

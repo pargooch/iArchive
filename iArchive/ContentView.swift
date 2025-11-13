@@ -17,7 +17,7 @@ struct ContentView: View {
 }
 
 struct HomeView: View {
-    @EnvironmentObject private var store: ScannedPagesStore
+    @EnvironmentObject private var library: DocumentLibrary
     @State private var showCameraOptions = false
     @State private var searchActive = false
     @State private var searchText = ""
@@ -73,8 +73,9 @@ struct HomeView: View {
                     // Content grid
                     ScrollView {
                         let columns = [GridItem(.flexible()), GridItem(.flexible())]
-                        let indices = Array(store.pages.indices).filter { idx in
-                            searchText.isEmpty ? true : (store.names.indices.contains(idx) && store.names[idx].localizedCaseInsensitiveContains(searchText))
+                        let indices = Array(library.documents.indices).filter { idx in
+                            let name = library.documents[idx].name
+                            return searchText.isEmpty ? true : name.localizedCaseInsensitiveContains(searchText)
                         }
                         LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(indices, id: \.self) { index in
@@ -88,11 +89,28 @@ struct HomeView: View {
                                     }
                                 }) {
                                     VStack(alignment: .leading, spacing: 8) {
-                                        Image(uiImage: store.pages[index])
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(height: 160)
-                                            .cornerRadius(10)
+                                        if let thumb = library.thumbnail(for: library.documents[index]) {
+                                            Image(uiImage: thumb)
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(height: 160)
+                                                .cornerRadius(10)
+                                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                                .overlay(alignment: .topTrailing) {
+                                                    if isSelecting {
+                                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                                            .foregroundColor(isSelected ? .accentColor : .secondary)
+                                                            .padding(6)
+                                                    }
+                                                }
+                                        } else {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color(.systemGray5))
+                                                    .frame(height: 160)
+                                                Image(systemName: "doc")
+                                                    .foregroundColor(.secondary)
+                                            }
                                             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                                             .overlay(alignment: .topTrailing) {
                                                 if isSelecting {
@@ -101,7 +119,8 @@ struct HomeView: View {
                                                         .padding(6)
                                                 }
                                             }
-                                        Text(store.names.indices.contains(index) ? store.names[index] : "Document \(index + 1)")
+                                        }
+                                        Text(library.documents[index].name)
                                             .font(.footnote)
                                             .foregroundColor(.secondary)
                                     }
@@ -121,14 +140,14 @@ struct HomeView: View {
             .navigationBarHidden(true)
         }
         .sheet(isPresented: $showDetail) {
-            if let idx = detailIndex, store.pages.indices.contains(idx) {
-                DocumentDetailView(index: idx, image: store.pages[idx])
-                    .environmentObject(store)
+            if let idx = detailIndex, library.documents.indices.contains(idx) {
+                DocumentDetailView(document: library.documents[idx])
+                    .environmentObject(library)
             }
         }
         .fullScreenCover(isPresented: $showCameraOptions) {
             CameraOptionsView()
-                .environmentObject(store)
+                .environmentObject(library)
         }
     }
 
@@ -168,7 +187,7 @@ struct HomeView: View {
     private func deleteSelected() {
         let sorted = selectedIndices.sorted()
         guard !sorted.isEmpty else { return }
-        store.remove(at: IndexSet(sorted))
+        library.deleteDocument(at: IndexSet(sorted))
         selectedIndices.removeAll()
         isSelecting = false
     }
@@ -193,7 +212,7 @@ private struct RoundedButton: View {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var store: ScannedPagesStore
+    @EnvironmentObject private var library: DocumentLibrary
     @State private var showClearAlert = false
     var body: some View {
         NavigationView {
@@ -216,7 +235,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .alert("Clear All Documents?", isPresented: $showClearAlert) {
                 Button("Cancel", role: .cancel) {}
-                Button("Clear", role: .destructive) { store.clear() }
+                Button("Clear", role: .destructive) { library.clearAll() }
             }
         }
     }
