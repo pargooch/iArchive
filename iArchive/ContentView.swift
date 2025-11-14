@@ -1,19 +1,47 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
-    var body: some View {
-        TabView {
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house")
-                }
+    @EnvironmentObject private var library: DocumentLibrary
+    @State private var showGlobalCameraOptions = false
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            TabView {
+                HomeView()
+                    .tabItem { Label("Home", systemImage: "house") }
+
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gear") }
+            }
+            .tint(.brandPrimary)
+
+            // Floating camera button positioned at the bottom-left of the page
+            VStack {
+                Spacer()
+                HStack {
+                    Button(action: { showGlobalCameraOptions = true }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.brandPrimary)
+                                .frame(width: 54, height: 54)
+                                .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 6)
+                                .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0) // subtle halo
+                            CameraPlusIcon()
+                        }
+                    }
+                    .accessibilityLabel("Scan with Camera")
+                    Spacer()
                 }
+                .padding(.bottom, 34)
+                .padding(.leading, 20)
+                .offset(y: -8)
+            }
         }
-        .tint(.brandPrimary)
+        .fullScreenCover(isPresented: $showGlobalCameraOptions) {
+            CameraOptionsView()
+                .environmentObject(library)
+        }
     }
 }
 
@@ -28,7 +56,7 @@ struct HomeView: View {
 
     var body: some View {
         NavigationView {
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
                     // Top bar: centered title, trailing controls layered
                     ZStack {
@@ -64,32 +92,39 @@ struct HomeView: View {
                     Divider()
 
                     if searchActive {
-                        HStack {
-                            Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-                            TextField("Search documents", text: $searchText)
-                                .textFieldStyle(.plain)
+                        HStack(spacing: 8) {
+                            SearchField(text: $searchText)
+                            Button("Cancel") {
+                                searchText = ""
+                                withAnimation { searchActive = false }
+                            }
+                            .foregroundColor(.brandPrimary)
                         }
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
                         .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
                     // Professional list or empty state
                     if library.documents.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "doc")
-                                .font(.system(size: 56))
-                                .foregroundColor(.secondary)
-                            Text("You haven't scanned any document")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Text("Tap the + button to add your first document.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        ZStack {
+                            Color(.systemGroupedBackground)
+                                .ignoresSafeArea()
+
+                            VStack(spacing: 12) {
+                                Image(systemName: "doc")
+                                    .font(.system(size: 56))
+                                    .foregroundColor(.secondary)
+                                Text("You haven't scanned any document")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Text("Tap the + button to add your first document.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                            .padding(.top, 32)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 240)
-                        .padding(.top, 32)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     } else {
                         let indices = Array(library.documents.indices).filter { idx in
                             let name = library.documents[idx].name
@@ -153,19 +188,9 @@ struct HomeView: View {
                             .shadow(radius: 4)
                     }
                 }
-            } else {
-                Button(action: { showCameraOptions = true }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 56, height: 56)
-                        .background(Color.brandPrimary)
-                        .clipShape(Circle())
-                        .shadow(radius: 4)
-                }
             }
         }
-        .padding(.leading, 16)
+        .padding(.trailing, 16)
         .padding(.bottom, 24)
     }
 
@@ -207,6 +232,28 @@ private struct RoundedButton: View {
         }
     }
 }
+
+private struct CameraPlusIcon: View {
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(systemName: "camera.fill")
+                .foregroundColor(.white)
+                .font(.system(size: 26, weight: .bold))
+            ZStack {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 16, height: 16)
+                Image(systemName: "plus")
+                    .foregroundColor(.brandPrimary)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .offset(x: 6, y: 5)
+        }
+    }
+}
+
+// (Reverted) Removed the custom SearchBar component to restore
+// the previous inline search UI.
 
 private struct DocumentRow: View {
     let document: PersistedDocument
@@ -298,6 +345,37 @@ struct SettingsView: View {
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
+    }
+}
+// Removed ScanTabTriggerView; center button now overlays the TabView to sit above it.
+
+// MARK: - Search Field Component
+private struct SearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField("Search documents", text: $text)
+                .textFieldStyle(.plain)
+                .submitLabel(.done)
+            if !text.isEmpty {
+                Button(action: { text = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.brandPrimary.opacity(0.18), lineWidth: 1)
+        )
+        .cornerRadius(14)
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
     }
 }
 
