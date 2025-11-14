@@ -4,11 +4,14 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject private var library: DocumentLibrary
     @State private var showGlobalCameraOptions = false
+    // Lift selection state to align global bottom row actions (trash + camera)
+    @State private var isSelecting = false
+    @State private var selectedIndices: Set<Int> = []
 
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView {
-                HomeView()
+                HomeView(isSelecting: $isSelecting, selectedIndices: $selectedIndices)
                     .tabItem { Label("Home", systemImage: "house") }
 
                 SettingsView()
@@ -16,10 +19,26 @@ struct ContentView: View {
             }
             .tint(.brandPrimary)
 
-            // Floating camera button positioned at the bottom-left of the page
+            // Global bottom row: left trash (when selecting) and right camera
             VStack {
                 Spacer()
                 HStack {
+                    // Left trash button appears only when selecting and items chosen
+                    if isSelecting && !selectedIndices.isEmpty {
+                        Button(action: deleteSelected) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.brandPrimary)
+                                    .frame(width: 54, height: 54)
+                                    .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 6)
+                                    .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0)
+                                Image(systemName: "trash")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 22, weight: .bold))
+                            }
+                        }
+                    }
+                    Spacer()
                     Button(action: { showGlobalCameraOptions = true }) {
                         ZStack {
                             Circle()
@@ -31,28 +50,38 @@ struct ContentView: View {
                         }
                     }
                     .accessibilityLabel("Scan with Camera")
-                    Spacer()
                 }
-                .padding(.bottom, 34)
-                .padding(.leading, 20)
-                .offset(y: -8)
+                .padding(.bottom, 2)
+                .padding(.horizontal, 20)
+                .offset(y: 6)
             }
         }
-        .fullScreenCover(isPresented: $showGlobalCameraOptions) {
+        .sheet(isPresented: $showGlobalCameraOptions) {
             CameraOptionsView()
                 .environmentObject(library)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(.systemBackground))
         }
+    }
+
+    // Delete selected documents and exit selection mode
+    private func deleteSelected() {
+        let sorted = selectedIndices.sorted()
+        guard !sorted.isEmpty else { return }
+        library.deleteDocument(at: IndexSet(sorted))
+        selectedIndices.removeAll()
+        isSelecting = false
     }
 }
 
 struct HomeView: View {
     @EnvironmentObject private var library: DocumentLibrary
-    @State private var showCameraOptions = false
-    @State private var searchActive = false
     @State private var searchText = ""
     @State private var selectedDocument: PersistedDocument? = nil
-    @State private var isSelecting = false
-    @State private var selectedIndices: Set<Int> = []
+    @Binding var isSelecting: Bool
+    @Binding var selectedIndices: Set<Int>
+    @State private var showCameraOptions = false
 
     var body: some View {
         NavigationView {
@@ -60,7 +89,7 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     // Top bar: centered title, trailing controls layered
                     ZStack {
-                        Text("Documents")
+                        Text("Home")
                             .font(.headline)
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -68,7 +97,6 @@ struct HomeView: View {
                         HStack {
                             Spacer()
                             HStack(spacing: 8) {
-                                RoundedButton(icon: "magnifyingglass") { searchActive.toggle() }
                                 RoundedButton(icon: isSelecting ? "xmark" : "checkmark.circle") {
                                     if isSelecting {
                                         isSelecting = false
@@ -91,18 +119,11 @@ struct HomeView: View {
 
                     Divider()
 
-                    if searchActive {
-                        HStack(spacing: 8) {
-                            SearchField(text: $searchText)
-                            Button("Cancel") {
-                                searchText = ""
-                                withAnimation { searchActive = false }
-                            }
-                            .foregroundColor(.brandPrimary)
-                        }
-                        .padding(.horizontal)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    HStack {
+                        SearchField(text: $searchText)
                     }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
 
                     // Professional list or empty state
                     if library.documents.isEmpty {
@@ -125,6 +146,8 @@ struct HomeView: View {
                             .padding(.top, 32)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismissKeyboard() }
                     } else {
                         let indices = Array(library.documents.indices).filter { idx in
                             let name = library.documents[idx].name
@@ -152,12 +175,14 @@ struct HomeView: View {
                             }
                         }
                         .listStyle(.insetGrouped)
+                        .scrollDismissesKeyboard(.immediately)
                     }
 
                     // Bottom actions removed per request; actions will appear post-scan
                 }
-                bottomActionButton
+                // Trash button moved to global bottom row in ContentView
             }
+            .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
             .navigationBarHidden(true)
             .tint(.brandPrimary)
         }
@@ -165,42 +190,18 @@ struct HomeView: View {
             DocumentDetailView(document: doc)
                 .environmentObject(library)
         }
-        .fullScreenCover(isPresented: $showCameraOptions) {
+        .sheet(isPresented: $showCameraOptions) {
             CameraOptionsView()
                 .environmentObject(library)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(.systemBackground))
         }
     }
 
     // Export/Share/Save moved to post-scan actions
 
-    @ViewBuilder
-    private var bottomActionButton: some View {
-        Group {
-            if isSelecting {
-                if !selectedIndices.isEmpty {
-                    Button(action: deleteSelected) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color.brandPrimary)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
-                    }
-                }
-            }
-        }
-        .padding(.trailing, 16)
-        .padding(.bottom, 24)
-    }
-
-    private func deleteSelected() {
-        let sorted = selectedIndices.sorted()
-        guard !sorted.isEmpty else { return }
-        library.deleteDocument(at: IndexSet(sorted))
-        selectedIndices.removeAll()
-        isSelecting = false
-    }
+    // deleteSelected moved to ContentView
 
     private var allSelected: Bool {
         !library.documents.isEmpty && selectedIndices.count == library.documents.count
@@ -212,6 +213,10 @@ struct HomeView: View {
         } else {
             selectedIndices = Set(library.documents.indices)
         }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
@@ -270,6 +275,13 @@ private struct DocumentRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // Selection indicator on the far-left; no overlap with thumbnail
+            if isSelecting {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .brandPrimary : .secondary)
+                    .font(.system(size: 22, weight: .bold))
+            }
+
             // Thumbnail or placeholder
             if let thumb = thumbnail {
                 Image(uiImage: thumb)
@@ -304,11 +316,7 @@ private struct DocumentRow: View {
 
             Spacer()
 
-            // Selection indicator when selecting
-            if isSelecting {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isSelected ? .brandPrimary : .secondary)
-            }
+            // Selection indicator moved behind-left of thumbnail
         }
         .padding(.vertical, 6)
     }

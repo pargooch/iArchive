@@ -12,58 +12,39 @@ struct CameraOptionsView: View {
     @State private var scannedTemp: [UIImage] = []
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color(UIColor.systemBackground).ignoresSafeArea()
-
-                VStack(spacing: 24) {
+        VStack(spacing: 24) {
+            VStack(spacing: 16) {
+                Button(action: { showPhotoPicker = true }) {
                     HStack {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "chevron.backward")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.brandPrimary)
-                        }
-                        Spacer()
+                        Image(systemName: "photo.on.rectangle")
+                        Text("Add from Gallery")
+                            .fontWeight(.semibold)
                     }
-                    .padding(.horizontal)
-
-                    Spacer()
-
-                    VStack(spacing: 16) {
-                        Button(action: { showPhotoPicker = true }) {
-                            HStack {
-                                Image(systemName: "photo.on.rectangle")
-                                Text("Add from Gallery")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .primaryButton()
-
-                        Button(action: { showScanner = true }) {
-                            HStack {
-                                Image(systemName: "doc.viewfinder")
-                                Text("Scan with Camera")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .primaryButton()
-
-                        Button(action: { showDocumentPicker = true }) {
-                            HStack {
-                                Image(systemName: "folder")
-                                Text("Choose from Files")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .primaryButton()
-                    }
-                    .padding(.horizontal)
-
-                    Spacer()
                 }
+                .primaryButton()
+
+                Button(action: { showScanner = true }) {
+                    HStack {
+                        Image(systemName: "doc.viewfinder")
+                        Text("Scan with Camera")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .primaryButton()
+
+                Button(action: { showDocumentPicker = true }) {
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("Choose from Files")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .primaryButton()
             }
-            .navigationBarHidden(true)
+            .padding(.horizontal)
         }
+        .padding(.vertical, 24)
+        .background(Color(.systemBackground))
         .fullScreenCover(isPresented: $showScanner) {
             DocumentScannerView(
                 images: $scannedTemp,
