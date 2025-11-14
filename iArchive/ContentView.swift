@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var library: DocumentLibrary
+    @State private var selectedTab: Int = 0
     @State private var showGlobalCameraOptions = false
     // Lift selection state to align global bottom row actions (trash + camera)
     @State private var isSelecting = false
@@ -10,50 +11,54 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView {
+            TabView(selection: $selectedTab) {
                 HomeView(isSelecting: $isSelecting, selectedIndices: $selectedIndices)
                     .tabItem { Label("Home", systemImage: "house") }
+                    .tag(0)
 
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gear") }
+                    .tag(1)
             }
             .tint(.brandPrimary)
 
             // Global bottom row: left trash (when selecting) and right camera
-            VStack {
-                Spacer()
-                HStack {
-                    // Left trash button appears only when selecting and items chosen
-                    if isSelecting && !selectedIndices.isEmpty {
-                        Button(action: deleteSelected) {
+            if selectedTab == 0 {
+                VStack {
+                    Spacer()
+                    HStack {
+                        // Left trash button appears only when selecting and items chosen
+                        if isSelecting && !selectedIndices.isEmpty {
+                            Button(action: deleteSelected) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.brandPrimary)
+                                        .frame(width: 54, height: 54)
+                                        .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 6)
+                                        .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0)
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 22, weight: .bold))
+                                }
+                            }
+                        }
+                        Spacer()
+                        Button(action: { showGlobalCameraOptions = true }) {
                             ZStack {
                                 Circle()
                                     .fill(Color.brandPrimary)
                                     .frame(width: 54, height: 54)
                                     .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 6)
-                                    .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0)
-                                Image(systemName: "trash")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 22, weight: .bold))
+                                    .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0) // subtle halo
+                                CameraPlusIcon()
                             }
                         }
+                        .accessibilityLabel("Scan with Camera")
                     }
-                    Spacer()
-                    Button(action: { showGlobalCameraOptions = true }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.brandPrimary)
-                                .frame(width: 54, height: 54)
-                                .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 6)
-                                .shadow(color: Color.white.opacity(0.6), radius: 3, x: 0, y: 0) // subtle halo
-                            CameraPlusIcon()
-                        }
-                    }
-                    .accessibilityLabel("Scan with Camera")
+                    .padding(.bottom, 2)
+                    .padding(.horizontal, 20)
+                    .offset(y: 6)
                 }
-                .padding(.bottom, 2)
-                .padding(.horizontal, 20)
-                .offset(y: 6)
             }
         }
         .sheet(isPresented: $showGlobalCameraOptions) {
